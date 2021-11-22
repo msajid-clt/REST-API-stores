@@ -23,7 +23,7 @@ class UserRegister(Resource):
             return {"message" : "Either username or password is empty."}, 500
         user = UserModel.find_by_username(username)
         if user:
-            return jsonify("Username {} already exists!. Choose another name.".format(username)), 400
+            return {"message": "Username {} already exists!. Choose another name.".format(username)}, 400
         else:
             user = UserModel(username, password)
             id = user.save_to_db()
