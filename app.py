@@ -32,10 +32,6 @@ jwt = JWTManager(app)
 # config JWT auth key name to be 'email' instead of default 'username'
 # app.config['JWT_AUTH_USERNAME_KEY'] = 'email'
 
-@app.before_first_request
-def create_tables():
-    db.create_all()
-
 @jwt.user_identity_loader
 def user_identity_callback(user):
     print(user)
