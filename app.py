@@ -1,4 +1,4 @@
-import datetime
+import datetime, os
 from flask import Flask, jsonify, request
 from flask_jwt_extended import (
     JWTManager, jwt_required, create_access_token,
@@ -16,7 +16,7 @@ from models.user import UserModel
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///data.db"
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///data.db')
 app.secret_key = 'VerySecret'
 api = Api(app)
 
