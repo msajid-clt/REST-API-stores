@@ -1,4 +1,4 @@
-import sqlite3
+from flask import jsonify
 from flask_restful import Resource, reqparse
 from models.user import UserModel
 
@@ -19,24 +19,21 @@ class UserRegister(Resource):
 
     @classmethod
     def register_user(cls, username, password):
-        result = UserModel.find_by_username(username)
-        user = result['user']
+        if username is None or password is None:
+            return {"message" : "Either username or password is empty."}, 500
+        user = UserModel.find_by_username(username)
         if user:
-            status_message = 'Username {} already exists!. Choose another name.'.format(username)
-            status_code = 400            
+            return jsonify("Username {} already exists!. Choose another name.".format(username)), 400
         else:
             user = UserModel(username, password)
-            user.save_to_db()
-            status_message = "User {} created successfully.".format(username)
-            status_code = 201
-                
-        return {'msg' : status_message, "msg_code" : status_code}
+            id = user.save_to_db()
+        return id
 
 
     def post(self):
         data = UserRegister.parser.parse_args()
-        result = UserRegister.register_user(**data)
-        return {'message' : result['msg']}, result['msg_code']
+        return UserRegister.register_user(**data)
+        
 
 
         

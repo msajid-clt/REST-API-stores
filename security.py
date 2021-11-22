@@ -12,3 +12,4 @@ def identity(payload):
     result = UserModel.find_by_id(user_id)
     user = result['user']
     return user
+
