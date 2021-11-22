@@ -16,7 +16,11 @@ from models.user import UserModel
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///data.db')
+database_uri = os.environ.get("DATABASE_URL", "sqlite:///data.db")  # or other relevant config var 
+if database_uri.startswith("postgres://"):     
+    database_uri = database_uri.replace("postgres://", "postgresql://", 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_uri
 app.secret_key = 'VerySecret'
 api = Api(app)
 
