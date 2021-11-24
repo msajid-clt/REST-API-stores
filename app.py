@@ -8,7 +8,7 @@ from functools import wraps
 
 from flask_restful import Api
 
-from resources.user import UserRegister
+from resources.user import UserRegister, User
 from resources.item import ItemManager, ItemList
 from resources.store import StoreManager, StoreList
 
@@ -16,10 +16,14 @@ from models.user import UserModel
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['PROPAGATE_EXCEPTIONS'] = True
+
+# DATABASE_URI
 database_uri = os.environ.get("DATABASE_URL", "sqlite:///data.db")  # or other relevant config var 
 if database_uri.startswith("postgres://"):     
     database_uri = database_uri.replace("postgres://", "postgresql://", 1)
 
+print(database_uri)
 app.config['SQLALCHEMY_DATABASE_URI'] = database_uri
 app.secret_key = 'VerySecret'
 api = Api(app)
@@ -111,10 +115,14 @@ def admin_only():
 api.add_resource(ItemManager, '/item/<string:name>')
 api.add_resource(ItemList, '/items')
 api.add_resource(UserRegister, '/register')
+api.add_resource(User, '/user/<string:user_id>')
 api.add_resource(StoreManager, '/store/<string:name>')
 api.add_resource(StoreList, '/stores')
 
 if __name__ == '__main__':
     from db import db
     db.init_app(app)
+    @app.before_first_request
+    def create_tables():
+        db.create_all()
     app.run(port=5000, debug=True)

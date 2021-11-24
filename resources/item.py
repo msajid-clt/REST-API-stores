@@ -12,7 +12,7 @@ class ItemManager(Resource):
     )
     parser.add_argument(
         'store_id',
-        type=int,
+        type=str,
         required=True,
         help="The store_id of the item is required!"
     )
@@ -25,6 +25,7 @@ class ItemManager(Resource):
     
         return {"message" : "Item '{}' not found.".format(name)}, 404
     
+    @jwt_required()
     def post(self, name):
         if ItemModel.find_by_name(name):
             return {"message" : "Item '{}' already exists!".format(name)}, 400
@@ -39,6 +40,7 @@ class ItemManager(Resource):
     
         return {"message" : "Item '{}' added successfully!".format(name)}, 201
 
+    @jwt_required()
     def delete(self, name):
         item = ItemModel.find_by_name(name)
         if item:
@@ -49,6 +51,7 @@ class ItemManager(Resource):
     
         return {"message" : "Item '{}' deleted successfully!".format(name)}, 200
 
+    @jwt_required()
     def put(self, name):
         item = ItemModel.find_by_name(name)
         data = self.parser.parse_args()
@@ -67,5 +70,6 @@ class ItemManager(Resource):
     
 
 class ItemList(Resource):
+    @jwt_required()
     def get(self):
         return ItemModel.get_all_items(), 200

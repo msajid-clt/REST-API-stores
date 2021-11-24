@@ -19,6 +19,7 @@ class StoreManager(Resource):
             
         return {"message" : "Store '{}' not found.".format(name)}, 404
     
+    @jwt_required()
     def post(self, name):
         #data = self.parser.parse_args()
         if not StoreModel.find_by_name(name):
@@ -32,6 +33,7 @@ class StoreManager(Resource):
 
         return {'store' : store.toJSON()}
 
+    @jwt_required()
     def delete(self, name):
         store = StoreModel.find_by_name(name)
         if store:
@@ -41,6 +43,7 @@ class StoreManager(Resource):
             return {"message" : "Store not found!".format(name)}
 
 class StoreList(Resource):
+    @jwt_required()
     def get(self):
         return {"stores" : StoreModel.get_all_stores()}
 

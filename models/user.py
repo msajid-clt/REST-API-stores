@@ -1,5 +1,7 @@
 import uuid
 
+from flask_restful import Resource
+
 from db import db
 from flask import jsonify
 from sqlalchemy.dialects.postgresql import UUID
@@ -16,6 +18,9 @@ class UserModel(db.Model):
         self.username = username
         self.password = pbkdf2_sha256.hash(password)
     
+    def toJSON(self):
+        return {'id' : self.id, 'username' : self.username}
+
     def check_password(self, password):
         return pbkdf2_sha256.verify(password, self.password)
     
@@ -35,3 +40,7 @@ class UserModel(db.Model):
             return {"message": "An error occurred: " + str(e)}, 500
         
         return jsonify(self.id)
+    
+    def delete(self):
+        db.session.delete(self)
+        db.session.commit()
