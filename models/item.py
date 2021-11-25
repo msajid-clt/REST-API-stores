@@ -18,7 +18,10 @@ class ItemModel(db.Model):
         self.store_id = store_id
 
     def toJSON(self):
-        return {"id" : self.id, "name" : self.name, "price" : self.price, "store_id": self.store_id}
+        return {"id" : self.id, "name" : self.name, "price" : self.price, "store_id": self.store_id }
+    
+    def toJSON_without_auth(self):
+        return {"name" : self.name,  "store_id": self.store_id }
     
     @classmethod
     def find_by_name(cls, name):
@@ -29,8 +32,15 @@ class ItemModel(db.Model):
         return cls.query.filter_by(id=_id).first()
     
     @classmethod
-    def get_all_items(cls):
-        return [item.toJSON() for item in cls.query.all()]
+    def get_all_items(cls, user_id):
+        if user_id:
+            return {
+                "items" : [item.toJSON() for item in cls.query.all()]
+            }
+        return {
+            "items" : [item.toJSON_without_auth() for item in cls.query.all()],
+            "message" : "More data available on log in."
+        }
 
     def save_to_db(self):
         db.session.add(self)

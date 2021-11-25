@@ -1,79 +1,71 @@
 import datetime, os
+from functools import wraps
 from flask import Flask, jsonify, request
 from flask_jwt_extended import (
-    JWTManager, jwt_required, create_access_token,
-    get_current_user, verify_jwt_in_request
+    JWTManager, jwt_required, verify_jwt_in_request, get_current_user
 )
-from functools import wraps
-
 from flask_restful import Api
 
-from resources.user import UserRegister, User
+from resources.user import (
+    UserRegister, User, UserLogin, 
+    UserLogout, UserCheck, TokenRefresh,
+)
 from resources.item import ItemManager, ItemList
 from resources.store import StoreManager, StoreList
-
 from models.user import UserModel
+from redis_manager import redis_manager
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['PROPAGATE_EXCEPTIONS'] = True
+app.config['JWT_BLACKLIST_ENABLED'] = True
+app.config['JWT_BLACKLIST_TOKENS_CHECKS'] = ['access', 'refresh']
+app.config['JWT_SECRET_KEY'] = 'msdev'
 
 # DATABASE_URI
 database_uri = os.environ.get("DATABASE_URL", "sqlite:///data.db")  # or other relevant config var 
 if database_uri.startswith("postgres://"):     
     database_uri = database_uri.replace("postgres://", "postgresql://", 1)
 
-print(database_uri)
 app.config['SQLALCHEMY_DATABASE_URI'] = database_uri
+
 app.secret_key = 'VerySecret'
 api = Api(app)
 
-# if the authentication endpoint has to be changed to something other than auth
-# app.config['JWT_AUTH_URL_RULE'] = '/login'
-
 # config JWT to expire within half an hour
-app.config['JWT_EXPIRATION_DELTA'] = datetime.timedelta(seconds=1800)
+app.config['JWT_EXPIRATION_DELTA'] = datetime.timedelta(seconds=30)
 
-#jwt = JWTManager(app, authenticate, identity_function) #/auth
+#use jwt
+#jwt = JWT(app, authenticate, identity_function) #/auth
+#use jwt_extended
 jwt = JWTManager(app)
 
-# config JWT auth key name to be 'email' instead of default 'username'
-# app.config['JWT_AUTH_USERNAME_KEY'] = 'email'
+@jwt.additional_claims_loader
+def add_claims_to_jwt(identity):
+    user = UserModel.find_by_id(identity)
+    if user.username == "admin":
+        return {"is_admin" : True}  
+    return {"is_admin" : False}  
+
+@jwt.token_in_blocklist_loader
+def check_if_token_in_blocklist(jwt_header, jwt_payload):
+    jti = jwt_payload['jti']
+    token_in_blocklist = redis_manager.jwt_redis_blocklist.get(jti)
+    return  token_in_blocklist is not None
+
 
 @jwt.user_identity_loader
 def user_identity_callback(user):
-    print(user)
     return user
-
-# Create a route to authenticate your users and return JWTs. The
-# create_access_token() function is used to actually generate the JWT.
-@app.route("/login", methods=["POST"])
-def login():
-    if not request.is_json:
-        return jsonify("Missing JSON in request"), 500
-
-    username = request.json.get("username", None)
-    password = request.json.get("password", None)
-    if not username:
-        return jsonify("Missing username parameter"), 500
-    if not password:
-        return jsonify("Missing password parameter"), 500
-
-    user = UserModel.find_by_username(username)
-    if user and user.check_password(password):
-        access_token = create_access_token(identity=username)
-        return jsonify(access_token=access_token)
-    else:
-        return jsonify("Bad username or password"), 401
 
 # Register a callback function that loads a user from your database whenever
 # a protected route is accessed. This should return any python object on a
 # successful lookup, or None if the lookup failed for any reason (for example
 # if the user has been deleted from the database).
 @jwt.user_lookup_loader
-def user_lookup_callback(_jwt_header, jwt_data):
-    identity = jwt_data["sub"]
-    user = UserModel.find_by_username(identity)
+def user_lookup_callback(_jwt_header, jwt_payload):
+    identity = jwt_payload["sub"]
+    user = UserModel.find_by_id(identity)
     # if user:
     #     if user.username == "rolf":
     #         user["role"] = "admin"
@@ -82,18 +74,40 @@ def user_lookup_callback(_jwt_header, jwt_data):
     #     return user[0]
     return user
 
-# Protect a route with jwt_required, which will kick out requests
-# without a valid JWT present.
-@app.route("/who_am_i", methods=["GET"])
-@jwt_required()
-def protected():
-    # We can now access our sqlalchemy User object via `current_user`.
-    current_user = get_current_user()
-    return jsonify(
-        id=current_user.id, 
-        username=current_user.username,
-    )
-    
+@jwt.expired_token_loader
+def expired_token_callback(jwt_header, jwt_payload):
+    return jsonify({
+        'description' : 'The token has expired',
+        'error' : 'Token expired'
+    }), 401
+
+@jwt.invalid_token_loader
+def invalid_token_callback(jwt_header, jwt_payload):
+    return jsonify({
+        'description' : 'Signature verification failed',
+        'error' : 'Token is invalid'
+    }), 401
+
+@jwt.unauthorized_loader
+def missing_token_callback(jwt_header, jwt_payload):
+    return jsonify({
+        'description' : 'Request does not contain an access token',
+        'error' : 'Authorization required'
+    }), 401
+
+@jwt.needs_fresh_token_loader
+def token_not_fresh_callback(jwt_header, jwt_payload):
+    return jsonify({
+        'description' : 'The access token is not fresh',
+        'error' : 'Fresh Token required'
+    }), 401
+
+@jwt.revoked_token_loader
+def revoked_token_callback(jwt_header, jwt_payload):
+    return jsonify({
+        'description' : 'The access token has been revoked',
+        'error' : 'Access Token revoked'
+    }), 401
 
 def admin_required(fn):
     @wraps(fn)
@@ -114,10 +128,14 @@ def admin_only():
 
 api.add_resource(ItemManager, '/item/<string:name>')
 api.add_resource(ItemList, '/items')
-api.add_resource(UserRegister, '/register')
-api.add_resource(User, '/user/<string:user_id>')
 api.add_resource(StoreManager, '/store/<string:name>')
 api.add_resource(StoreList, '/stores')
+api.add_resource(UserRegister, '/register')
+api.add_resource(User, '/user/<string:user_id>')
+api.add_resource(UserLogin, '/login')
+api.add_resource(UserLogout, '/logout')
+api.add_resource(UserCheck, '/who_am_i')
+api.add_resource(TokenRefresh, '/refresh')
 
 if __name__ == '__main__':
     from db import db

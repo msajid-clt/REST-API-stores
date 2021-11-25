@@ -1,5 +1,6 @@
+from flask_jwt_extended.utils import get_jwt_identity
 from flask_restful import Resource, reqparse
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt
 from models.item import ItemModel
 
 class ItemManager(Resource):
@@ -25,7 +26,7 @@ class ItemManager(Resource):
     
         return {"message" : "Item '{}' not found.".format(name)}, 404
     
-    @jwt_required()
+    @jwt_required(fresh=True)
     def post(self, name):
         if ItemModel.find_by_name(name):
             return {"message" : "Item '{}' already exists!".format(name)}, 400
@@ -42,6 +43,10 @@ class ItemManager(Resource):
 
     @jwt_required()
     def delete(self, name):
+        claims = get_jwt()
+        if not claims['is_admin']:
+            return {'message' : 'Admin privilege is required'}, 401
+
         item = ItemModel.find_by_name(name)
         if item:
             try:
@@ -70,6 +75,9 @@ class ItemManager(Resource):
     
 
 class ItemList(Resource):
-    @jwt_required()
+    @jwt_required(optional=True)
     def get(self):
-        return ItemModel.get_all_items(), 200
+        user_id = get_jwt_identity()
+        return ItemModel.get_all_items(user_id), 200 
+            
+
